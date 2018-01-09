@@ -167,7 +167,7 @@ object Config {
         blockBodiesPerRequest = syncConfig.getInt("block-bodies-per-request"),
         receiptsPerRequest = syncConfig.getInt("receipts-per-request"),
         nodesPerRequest = syncConfig.getInt("nodes-per-request"),
-        minPeersToChooseTargetBlock = syncConfig.getInt("min-peers-to-choose-target-block"),
+        minPeersToChooseTargetBlock = syncConfig.getInt("min-peers-to-choose-target-block").max(1),
         targetBlockOffset = syncConfig.getInt("target-block-offset"),
         persistStateSnapshotInterval =
           syncConfig.getDuration("persist-state-snapshot-interval").toMillis.millis,

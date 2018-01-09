@@ -81,14 +81,31 @@ class FastSyncTargetBlockSelector(
   }
 
   def tryChooseTargetBlock(receivedHeaders: Map[Peer, BlockHeader]): Unit = {
-    log.debug("Trying to choose fast sync target block. Received {} block headers", receivedHeaders.size)
-    if (receivedHeaders.size >= minPeersToChooseTargetBlock) {
-      val (mostUpToDatePeer, mostUpToDateBlockHeader) = receivedHeaders.maxBy(_._2.number)
-      val targetBlock = mostUpToDateBlockHeader.number - syncConfig.targetBlockOffset
-      peerEventBus ! Subscribe(MessageClassifier(Set(BlockHeaders.code), PeerSelector.WithId(mostUpToDatePeer.id)))
-      etcPeerManager ! EtcPeerManagerActor.SendMessage(GetBlockHeaders(Left(targetBlock), 1, 0, reverse = false), mostUpToDatePeer.id)
+    log.info("Trying to choose fast sync target block. Received {} block headers", receivedHeaders.size)
+
+    val (targetBlockNumber: BigInt, peersWithTarget) =
+      if(receivedHeaders.nonEmpty) {
+        val peersPerEpoch: Map[BigInt, Seq[Peer]] = receivedHeaders.foldLeft(Map.empty[BigInt, Seq[Peer]]) { case (rec, (peer, header)) =>
+          val epochNumber = header.number / EpochLength
+          val peersInEpoch = peer +: rec.getOrElse(epochNumber, Nil)
+
+          rec + (epochNumber -> peersInEpoch)
+        }
+
+        val (epochMorePeers, peersInEpoch) = peersPerEpoch.maxBy(_._2.size)
+
+        log.info(s"PeersPerEpoch: $peersPerEpoch")
+
+        (epochMorePeers * EpochLength, peersInEpoch)
+      } else
+        (0, Nil)
+
+    if (peersWithTarget.size >= minPeersToChooseTargetBlock) {
+      val targetBlock = targetBlockNumber - syncConfig.targetBlockOffset
+      peerEventBus ! Subscribe(MessageClassifier(Set(BlockHeaders.code), PeerSelector.WithId(peersWithTarget.head.id)))
+      etcPeerManager ! EtcPeerManagerActor.SendMessage(GetBlockHeaders(Left(targetBlock), 1, 0, reverse = false), peersWithTarget.head.id)
       val timeout = scheduler.scheduleOnce(peerResponseTimeout, self, TargetBlockTimeout)
-      context become waitingForTargetBlock(mostUpToDatePeer, targetBlock, timeout)
+      context become waitingForTargetBlock(peersWithTarget.head, targetBlock, timeout)
 
     } else {
       log.info("Block synchronization (fast mode) not started. Need to receive block headers from at least {} peers, but received only from {}. Retrying in {}",
@@ -144,4 +161,7 @@ object FastSyncTargetBlockSelector {
 
   private case object BlockHeadersTimeout
   private case object TargetBlockTimeout
+
+  // Set to the same value as the
+  val EpochLength = 30000
 }
