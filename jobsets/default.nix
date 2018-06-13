@@ -45,6 +45,10 @@ let pkgs = import nixpkgs {};
           ieleSrc = mkGitSrc {
             repo = "https://github.com/runtimeverification/iele-semantics.git";
           };
+          soliditySrc = mkGitSrc {
+            repo = "https://github.com/runtimeverification/solidity.git";
+            branch = "refs/heads/release";
+          };
         };
 
         enabled = 1;
