@@ -5,7 +5,6 @@
 
 stdenv.mkDerivation {
   name = "kevm";
-  requiredSystemFeatures = [ "ubuntu" ];
   src = kevmSrc;
 
   patches = [ ./kevm.patch ];
